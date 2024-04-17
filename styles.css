@@ -1,0 +1,33 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.editor-container {
+    display: flex;
+    height: 400px; /* Adjust the height of the editor */
+}
+
+.line-numbers {
+    width: 50px; /* Adjust the width of line numbers column */
+    padding: 10px;
+    border-right: 1px solid #ccc;
+    user-select: none;
+    background-color: #f7f7f7;
+    overflow-y: auto;
+}
+
+#line-numbers div {
+    line-height: 20px;
+}
+
+#code {
+    flex: 1;
+    border: none;
+    padding: 10px;
+    font-family: monospace;
+    resize: none;
+    overflow: auto;
+}
+
