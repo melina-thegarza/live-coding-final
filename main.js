@@ -4,6 +4,15 @@ var osc;
 var timings;
 var liveCodeState = [];
 const playButton = document.querySelector('button');
+const pauseButton = document.querySelector('#pauseButton');
+pauseButton.addEventListener('click', pauseAudio); 
+
+
+function pauseAudio() {
+    audioCtx.suspend(); // Pause the audio context
+    playButton.disabled = false; // Enable the play button
+    pauseButton.disabled = true; // Disable the pause button
+}
 
 function initAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)
@@ -92,9 +101,17 @@ function parseSingleNote(note) {
 
 function reevaluate() {
     var code = document.getElementById('code').value;
-    var data = parseCode(code);
-    console.log(data);
-    genAudio(data);
+    var lines = code.split('\n'); // Split the code by newline characters
+    var parsedData = [];
+
+    // Loop through each line of code
+    lines.forEach(function(line) {
+        var data = parseCode(line); // Parse each line of code
+        parsedData = parsedData.concat(data); // Concatenate the parsed data
+    });
+
+    console.log(parsedData);
+    genAudio(parsedData);
 }
 
 playButton.addEventListener('click', function () {
@@ -102,7 +119,8 @@ playButton.addEventListener('click', function () {
     if (!audioCtx) {
         initAudio();
     }
-
+    audioCtx.resume();
+    pauseButton.disabled = false;
     reevaluate();
 
 
