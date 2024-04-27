@@ -141,6 +141,41 @@ function parseFMSynth(line) {
     modulatorFreq.frequency.value = modFreq;
     carrier.type = wavetypes[waveform];
 
+    setTimeout(function() {
+        carrier.stop();
+        modulatorFreq.stop();
+        carrier = null;
+        modulatorFreq = null;
+    }, 1000);
+
+}
+
+function parseADDSynth(line) {
+    var startIndex = line.indexOf('(');
+    var endIndex = line.indexOf(')');
+    var values = line.substring(startIndex + 1, endIndex).trim().split(',');
+    var freq = parseInt(values[0]);
+    var num_oscillators = parseInt(values[1]);
+    var waveform = parseInt(values[2]);
+
+    const oscillators = [];
+
+    const globalGain = audioCtx.createGain();
+    globalGain.gain.value = 0.0001;
+    globalGain.connect(audioCtx.destination);
+    
+    for (let i = 0; i < num_oscillators; i++) {
+        oscillators[i] = audioCtx.createOscillator();
+        oscillators[i].frequency.value = ((i+1) * freq) + (i % 2 === 0 ? Math.random() * 15 : -Math.random() * 15);
+        oscillators[i].type = wavetypes[waveform]
+        oscillators[i].connect(globalGain);
+        oscillators[i].start();
+    }
+    
+    globalGain.gain.setTargetAtTime(0.25, audioCtx.currentTime, 0.05);
+    globalGain.gain.setTargetAtTime(0.0001, audioCtx.currentTime + 0.2, 1);
+    
+
 }
 
 
@@ -153,6 +188,9 @@ function reevaluate() {
     lines.forEach(function(line) {
         if (line.includes("fm_synth")) {
             parseFMSynth(line);
+        }
+        else if (line.includes("additive_synth")) {
+            parseADDSynth(line);
         }
         else{
             var data = parseCode(line); // Parse each line of code
