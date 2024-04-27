@@ -185,8 +185,22 @@ function reevaluate() {
     var parsedData = [];
 
     // Loop through each line of code
-    lines.forEach(function(line) {
-        if (line.includes("fm_synth")) {
+    for (let i = 0; i < lines.length; i++)  {
+        line = lines[i];
+        if(line.startsWith('live_loop')){
+            // find index of the 'end' that matches the 'live_loop'
+            let endIndex = lines.findIndex((line, index) => index > i && line.trim() === "end");
+            if (endIndex !== -1){
+                let liveLoopContent = lines.slice(i+1,endIndex).join('\n');
+                parseLiveLoop(liveLoopContent);
+                // move the loop index to the line after 'end'
+                i  = endIndex;
+            }
+            else{
+                console.log("ERROR: missing end statement")
+            }
+        }
+        else if (line.includes("fm_synth")) {
             parseFMSynth(line);
         }
         else if (line.includes("additive_synth")) {
@@ -197,10 +211,20 @@ function reevaluate() {
             parsedData = parsedData.concat(data); // Concatenate the parsed data
         }
        
-    });
+    }
 
     console.log(parsedData);
     genAudio(parsedData);
+}
+
+// parse the contents of the live_loop block
+function parseLiveLoop(content){
+    var lines = content.split('\n'); 
+    lines.forEach(function(line) {
+        console.log(line)
+        // create the loop
+    });
+
 }
 
 playButton.addEventListener('click', function () {
