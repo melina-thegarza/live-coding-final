@@ -1,8 +1,12 @@
 
 var audioCtx;
+var carrier = null;
+var modulatorFreq = null;
+var modulationIndex = null;
 var osc;
 var timings;
 var liveCodeState = [];
+var wavetypes = {0:"sine", 1:"square", 2:"sawtooth"}
 const playButton = document.querySelector('button');
 const pauseButton = document.querySelector('#pauseButton');
 pauseButton.addEventListener('click', pauseAudio); 
@@ -12,6 +16,18 @@ function pauseAudio() {
     audioCtx.suspend(); // Pause the audio context
     playButton.disabled = false; // Enable the play button
     pauseButton.disabled = true; // Disable the pause button
+
+    if (carrier) {
+        carrier.stop();
+        carrier.disconnect(); 
+        carrier = null;
+    }
+    if (modulatorFreq) {
+        modulatorFreq.stop();
+        modulatorFreq.disconnect(); 
+        modulatorFreq = null;
+    }
+
 }
 
 function initAudio() {
@@ -22,6 +38,7 @@ function initAudio() {
     osc.connect(timings).connect(audioCtx.destination);
     osc.start();
     scheduleAudio()
+
 }
 
 function scheduleAudio() {
@@ -98,6 +115,34 @@ function parseSingleNote(note) {
     };
 }
 
+function parseFMSynth(line) {
+    var startIndex = line.indexOf('(');
+    var endIndex = line.indexOf(')');
+    var values = line.substring(startIndex + 1, endIndex).trim().split(',');
+    var modFreq = parseInt(values[0]);
+    var modIndex = parseInt(values[1]);
+    var waveform = parseInt(values[2]);
+
+    // Check if carrier and modulator oscillators exist
+    if (!carrier || !modulatorFreq) {
+        // Create oscillators and set up FM synthesis
+        carrier = audioCtx.createOscillator();
+        modulatorFreq = audioCtx.createOscillator();
+        modulationIndex = audioCtx.createGain();
+        modulatorFreq.connect(modulationIndex);
+        modulationIndex.connect(carrier.frequency);
+        carrier.connect(audioCtx.destination);
+        carrier.start();
+        modulatorFreq.start();
+    }
+
+    // Update oscillator parameters
+    modulationIndex.gain.value = modIndex;
+    modulatorFreq.frequency.value = modFreq;
+    carrier.type = wavetypes[waveform];
+
+}
+
 
 function reevaluate() {
     var code = document.getElementById('code').value;
@@ -106,8 +151,14 @@ function reevaluate() {
 
     // Loop through each line of code
     lines.forEach(function(line) {
-        var data = parseCode(line); // Parse each line of code
-        parsedData = parsedData.concat(data); // Concatenate the parsed data
+        if (line.includes("fm_synth")) {
+            parseFMSynth(line);
+        }
+        else{
+            var data = parseCode(line); // Parse each line of code
+            parsedData = parsedData.concat(data); // Concatenate the parsed data
+        }
+       
     });
 
     console.log(parsedData);
@@ -119,7 +170,10 @@ playButton.addEventListener('click', function () {
     if (!audioCtx) {
         initAudio();
     }
-    audioCtx.resume();
+    
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
     pauseButton.disabled = false;
     reevaluate();
 
