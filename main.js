@@ -4,6 +4,7 @@ let shouldContinue = false;
 var carrier = null;
 var modulatorFreq = null;
 var modulationIndex = null;
+let timeoutID = null;
 var osc;
 var timings;
 var liveCodeState = [];
@@ -17,7 +18,9 @@ function pauseAudio() {
     audioCtx.suspend(); // Pause the audio context
     playButton.disabled = false; // Enable the play button
     pauseButton.disabled = true; // Disable the pause button
-    shouldContinue = false; //kill loops
+    clearTimeout(timeoutID); // Cancel any pending timeout
+    // Reset the flag to false immediately
+    shouldContinue = false;
 
     if (carrier) {
         carrier.stop();
@@ -194,7 +197,7 @@ function reevaluate() {
             let endIndex = lines.findIndex((line, index) => index > i && line.trim() === "end");
             if (endIndex !== -1){
                 let liveLoopContent = lines.slice(i+1,endIndex).join('\n');
-                shouldContinue = true;
+                // shouldContinue = true;
                 parseLiveLoop(liveLoopContent);
                 // move the loop index to the line after 'end'
                 i  = endIndex;
@@ -225,15 +228,26 @@ function reevaluate() {
 function parseLiveLoop(content) {
     var lines = content.split('\n'); 
     var timeElapsedSecs = 0;
+
+    // make sure we have at least one sleep command in our loop body
+    if (!content.includes('sleep')){
+        console.log("ERROR: no sleep command provided")
+        return;
+    }
+
+    // Cancel any pending timeout when starting the loop
+    clearTimeout(timeoutID);
+    // Reset the flag to true at the beginning of the loop
+    let shouldContinue = true;
     lines.forEach(function(line) {
         if (!shouldContinue) {
             return; // Exit the loop
         }
         // Check if the line contains the word "sleep" followed by a number
-        var sleepMatch = line.match(/sleep\s+(\d+)/);
+        var sleepMatch = line.match(/sleep\s*((\d+(\.\d+)?)|(\.\d+))/);
         if (sleepMatch) {
             // Extract the sleep duration from the match
-            var sleepDuration = parseInt(sleepMatch[1], 10);
+            var sleepDuration = parseFloat(sleepMatch[1]);
             setTimeout(() => {
                 console.log("Resuming after sleep:", sleepDuration);
             }, sleepDuration * 1000); 
@@ -242,19 +256,29 @@ function parseLiveLoop(content) {
             // If the line does not contain "sleep", you can play the notes here
             // Example: playNotes(line);
             console.log("Playing notes:", line);
-            if (line.includes("fm_synth")) {
+            if (line.startsWith("fm_synth")) {
                 parseFMSynth(line);
                 timeElapsedSecs += 1.5;
             }
-            else if (line.includes("additive_synth")) {
+            else if (line.startsWith("additive_synth")) {
                 parseADDSynth(line);
-                timeElapsedSecs += 1.5;
+                timeElapsedSecs += 2;
+            }
+            else if (line.startsWith("play")){
+                notes = line.split("play")[1];
+                notes = parseCode(notes);
+                notes.forEach(noteData => {
+                    timings.gain.setTargetAtTime(1, audioCtx.currentTime + timeElapsedSecs, 0.01)
+                    osc.frequency.setTargetAtTime(noteData["pitch"], audioCtx.currentTime + timeElapsedSecs, 0.01)
+                    timeElapsedSecs += noteData["length"]/10.0;
+                    timings.gain.setTargetAtTime(0, audioCtx.currentTime + timeElapsedSecs, 0.01)
+                    timeElapsedSecs += 0.2; //rest between notes
+                });
             }
         }
     });
-
     // Schedule the next iteration of parsing after the elapsed time
-    setTimeout(function() {
+    timeoutID = setTimeout(function() {
         if (shouldContinue) {
             parseLiveLoop(content);
         }
@@ -271,6 +295,8 @@ playButton.addEventListener('click', function () {
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
+    clearTimeout(timeoutID); // Cancel any pending timeout
+    shouldContinue = false;
     pauseButton.disabled = false;
     reevaluate();
 
