@@ -1,5 +1,6 @@
 
 var audioCtx;
+let shouldContinue = false;
 var carrier = null;
 var modulatorFreq = null;
 var modulationIndex = null;
@@ -16,6 +17,7 @@ function pauseAudio() {
     audioCtx.suspend(); // Pause the audio context
     playButton.disabled = false; // Enable the play button
     pauseButton.disabled = true; // Disable the pause button
+    shouldContinue = false; //kill loops
 
     if (carrier) {
         carrier.stop();
@@ -192,6 +194,7 @@ function reevaluate() {
             let endIndex = lines.findIndex((line, index) => index > i && line.trim() === "end");
             if (endIndex !== -1){
                 let liveLoopContent = lines.slice(i+1,endIndex).join('\n');
+                shouldContinue = true;
                 parseLiveLoop(liveLoopContent);
                 // move the loop index to the line after 'end'
                 i  = endIndex;
@@ -218,14 +221,46 @@ function reevaluate() {
 }
 
 // parse the contents of the live_loop block
-function parseLiveLoop(content){
+// parse the contents of the live_loop block
+function parseLiveLoop(content) {
     var lines = content.split('\n'); 
+    var timeElapsedSecs = 0;
     lines.forEach(function(line) {
-        console.log(line)
-        // create the loop
+        if (!shouldContinue) {
+            return; // Exit the loop
+        }
+        // Check if the line contains the word "sleep" followed by a number
+        var sleepMatch = line.match(/sleep\s+(\d+)/);
+        if (sleepMatch) {
+            // Extract the sleep duration from the match
+            var sleepDuration = parseInt(sleepMatch[1], 10);
+            setTimeout(() => {
+                console.log("Resuming after sleep:", sleepDuration);
+            }, sleepDuration * 1000); 
+            timeElapsedSecs += sleepDuration;
+        } else {
+            // If the line does not contain "sleep", you can play the notes here
+            // Example: playNotes(line);
+            console.log("Playing notes:", line);
+            if (line.includes("fm_synth")) {
+                parseFMSynth(line);
+                timeElapsedSecs += 1.5;
+            }
+            else if (line.includes("additive_synth")) {
+                parseADDSynth(line);
+                timeElapsedSecs += 1.5;
+            }
+        }
     });
 
+    // Schedule the next iteration of parsing after the elapsed time
+    setTimeout(function() {
+        if (shouldContinue) {
+            parseLiveLoop(content);
+        }
+    }, timeElapsedSecs * 1000);
 }
+
 
 playButton.addEventListener('click', function () {
 
