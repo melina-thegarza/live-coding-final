@@ -183,6 +183,60 @@ function parseADDSynth(line) {
 
 }
 
+function parseLFO(line){
+    console.log(line)
+    startIndex = line.indexOf('(');
+    var endIndex = line.indexOf(')');
+    var values = line.substring(startIndex + 1, endIndex).trim().split(',');
+
+    // fm synthesis
+    console.log(values)
+    if (values[2].includes("fm_synth")){
+           // Check if carrier and modulator oscillators exist
+        if (!carrier || !modulatorFreq) {
+            // Create oscillators and set up FM synthesis
+            carrier = audioCtx.createOscillator();
+            modulatorFreq = audioCtx.createOscillator();
+            modulationIndex = audioCtx.createGain();
+            modulatorFreq.connect(modulationIndex);
+            modulationIndex.connect(carrier.frequency);
+            carrier.connect(audioCtx.destination);
+            // carrier.start();
+            // modulatorFreq.start();
+        }
+
+        // Update oscillator parameters
+        modulationIndex.gain.value = parseInt(values[3]);
+        modulatorFreq.frequency.value = parseInt(values[2].split("(")[1]);
+        carrier.type = wavetypes[parseInt(values[4])];
+    }
+
+ 
+
+    var lfo = audioCtx.createOscillator();
+    // ADD CHECK TO MAKE SURE VALUE FALLS BETWEEN 1-20
+    lfo.frequency.value = values[0];
+    lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = values[1];
+    lfo.connect(lfoGain).connect(modulatorFreq.frequency);
+    lfo.start();
+    carrier.start();
+    modulatorFreq.start();
+
+    // add time duration
+    setTimeout(function() {
+        carrier.stop();
+        modulatorFreq.stop();
+        lfo.stop();
+        carrier = null;
+        modulatorFreq = null;
+        lfo = null;
+    }, 2000);
+
+
+
+}
+
 
 function reevaluate() {
     var code = document.getElementById('code').value;
@@ -205,6 +259,9 @@ function reevaluate() {
             else{
                 console.log("ERROR: missing end statement")
             }
+        }
+        else if (line.startsWith("lfo")){
+            parseLFO(line);
         }
         else if (line.includes("fm_synth")) {
             parseFMSynth(line);
