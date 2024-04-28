@@ -188,9 +188,7 @@ function parseLFO(line){
     startIndex = line.indexOf('(');
     var endIndex = line.indexOf(')');
     var values = line.substring(startIndex + 1, endIndex).trim().split(',');
-
     // fm synthesis
-    console.log(values)
     if (values[2].includes("fm_synth")){
            // Check if carrier and modulator oscillators exist
         if (!carrier || !modulatorFreq) {
@@ -201,39 +199,64 @@ function parseLFO(line){
             modulatorFreq.connect(modulationIndex);
             modulationIndex.connect(carrier.frequency);
             carrier.connect(audioCtx.destination);
-            // carrier.start();
-            // modulatorFreq.start();
+            carrier.start();
+            modulatorFreq.start();
         }
 
         // Update oscillator parameters
         modulationIndex.gain.value = parseInt(values[3]);
         modulatorFreq.frequency.value = parseInt(values[2].split("(")[1]);
         carrier.type = wavetypes[parseInt(values[4])];
+
+        var lfo = audioCtx.createOscillator();
+        // ADD CHECK TO MAKE SURE VALUE FALLS BETWEEN 1-20
+        lfo.frequency.value = parseFloat(values[0]);
+        lfoGain = audioCtx.createGain();
+        lfoGain.gain.value = parseFloat(values[1]);
+        lfo.connect(lfoGain).connect(modulatorFreq.frequency);
+        lfo.start();
+    
+        // add time duration
+        setTimeout(function() {
+            carrier.stop();
+            modulatorFreq.stop();
+            lfo.stop();
+            carrier = null;
+            modulatorFreq = null;
+            lfo = null;
+        }, 1000);
+    }
+    // additive synthesis
+    else if(values[2].includes("additive_synth")){
+        const oscillators = [];
+        const lfos = [];
+        const lfoGains = [];
+        const globalGain = audioCtx.createGain();
+        globalGain.gain.value = 0.0001;
+        globalGain.connect(audioCtx.destination);
+        
+        for (let i = 0; i < parseInt(values[3]); i++) {
+            oscillators[i] = audioCtx.createOscillator();
+            oscillators[i].frequency.value = ((i+1) * parseInt(values[2].split("(")[1])) + (i % 2 === 0 ? Math.random() * 15 : -Math.random() * 15);
+            oscillators[i].type = wavetypes[parseInt(values[4])]
+            oscillators[i].connect(globalGain);
+            oscillators[i].start();
+
+            lfos[i] = audioCtx.createOscillator();
+            lfos[i].frequency.value = parseFloat(values[0]) + Math.floor(Math.random() * 11) - 5;
+            lfoGains[i] = audioCtx.createGain();
+            lfoGains[i].gain.value = parseFloat(values[1]) + Math.floor(Math.random() * 5) - 2;
+            lfos[i].connect(lfoGains[i]).connect(oscillators[i].frequency);
+            lfos[i].start()
+
+        }
+        
+        globalGain.gain.setTargetAtTime(0.25, audioCtx.currentTime, 0.05);
+        globalGain.gain.setTargetAtTime(0.0001, audioCtx.currentTime + 0.2, 1);
+
     }
 
- 
-
-    var lfo = audioCtx.createOscillator();
-    // ADD CHECK TO MAKE SURE VALUE FALLS BETWEEN 1-20
-    lfo.frequency.value = values[0];
-    lfoGain = audioCtx.createGain();
-    lfoGain.gain.value = values[1];
-    lfo.connect(lfoGain).connect(modulatorFreq.frequency);
-    lfo.start();
-    carrier.start();
-    modulatorFreq.start();
-
-    // add time duration
-    setTimeout(function() {
-        carrier.stop();
-        modulatorFreq.stop();
-        lfo.stop();
-        carrier = null;
-        modulatorFreq = null;
-        lfo = null;
-    }, 2000);
-
-
+   
 
 }
 
@@ -251,7 +274,6 @@ function reevaluate() {
             let endIndex = lines.findIndex((line, index) => index > i && line.trim() === "end");
             if (endIndex !== -1){
                 let liveLoopContent = lines.slice(i+1,endIndex).join('\n');
-                // shouldContinue = true;
                 parseLiveLoop(liveLoopContent);
                 // move the loop index to the line after 'end'
                 i  = endIndex;
@@ -313,7 +335,11 @@ function parseLiveLoop(content) {
             // If the line does not contain "sleep", you can play the notes here
             // Example: playNotes(line);
             console.log("Playing notes:", line);
-            if (line.startsWith("fm_synth")) {
+            if (line.startsWith("lfo")){
+                parseLFO(line);
+                timeElapsedSecs += 1.5;
+            }
+            else if (line.startsWith("fm_synth")) {
                 parseFMSynth(line);
                 timeElapsedSecs += 1.5;
             }
